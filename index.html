@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>期货行情看板</title>
+  <style>
+    :root {
+      --bg:#0a0a0a; --surface:#141414; --surface2:#1c1c1c; --border:#252525;
+      --text:#e8e8e8; --muted:#555; --up:#26a69a; --down:#ef5350;
+      --flat:#777; --accent:#e8c96a;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--text); font-family:'SF Mono','Fira Code',Consolas,Menlo,monospace; font-size:13px; min-height:100vh; }
+    header { display:flex; align-items:center; justify-content:space-between; padding:13px 22px; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:100; }
+    .logo { font-size:13px; font-weight:700; color:var(--accent); letter-spacing:.05em; }
+    .logo span { color:var(--muted); font-weight:400; font-size:11px; margin-left:8px; }
+    .hdr-r { display:flex; align-items:center; gap:12px; }
+    #ts { color:var(--muted); font-size:11px; }
+    #dot { width:7px; height:7px; border-radius:50%; background:var(--muted); transition:background .3s; }
+    #dot.live { background:var(--up); box-shadow:0 0 5px var(--up); }
+    #dot.err  { background:var(--down); }
+    .ctrl { padding:9px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+    .ctrl label { color:var(--muted); font-size:11px; }
+    select,input[type=text] { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-family:inherit; font-size:12px; outline:none; }
+    select:focus,input:focus { border-color:var(--accent); }
+    button { background:var(--accent); color:#0a0a0a; border:none; padding:5px 11px; border-radius:4px; font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; transition:opacity .2s; }
+    button:hover { opacity:.85; }
+    button.s { background:var(--surface2); color:var(--text); border:1px solid var(--border); font-weight:400; }
+    .tabs { padding:0 22px; display:flex; border-bottom:1px solid var(--border); overflow-x:auto; }
+    .tab { padding:7px 13px; font-size:11px; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; flex-shrink:0; }
+    .tab:hover { color:var(--text); }
+    .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    main { padding:16px 22px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:9px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:13px; cursor:pointer; transition:border-color .2s; position:relative; overflow:hidden; }
+    .card:hover { border-color:#3a3a3a; }
+    .card.sel { border-color:var(--accent); }
+    .card-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px; }
+    .card-name { font-weight:700; font-size:13px; }
+    .card-code { color:var(--muted); font-size:10px; margin-top:2px; }
+    .card-cat { font-size:9px; padding:2px 5px; border-radius:3px; background:var(--surface2); color:var(--muted); border:1px solid var(--border); flex-shrink:0; }
+    .card-price { font-size:20px; font-weight:700; margin-bottom:3px; }
+    .card-chg { font-size:12px; margin-bottom:8px; }
+    .up { color:var(--up); } .down { color:var(--down); } .flat { color:var(--flat); }
+    .card-meta { display:grid; grid-template-columns:1fr 1fr; gap:2px 7px; font-size:10px; color:var(--muted); }
+    .v { color:var(--text); }
+    .card-unit { font-size:9px; color:var(--muted); margin-top:7px; text-align:right; }
+    .del { position:absolute; top:5px; right:5px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 4px; display:none; line-height:1; }
+    .card:hover .del { display:block; }
+    .del:hover { color:var(--down); }
+    #detail { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px; display:none; }
+    #detail.open { display:block; }
+    .dh { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .dt { font-size:14px; font-weight:700; }
+    .dc { cursor:pointer; color:var(--muted); font-size:17px; }
+    .dc:hover { color:var(--text); }
+    .dstats { display:grid; grid-template-columns:repeat(auto-fill,minmax(105px,1fr)); gap:9px; margin-bottom:15px; }
+    .stat { background:var(--surface2); border-radius:4px; padding:9px; }
+    .sl { font-size:10px; color:var(--muted); margin-bottom:3px; }
+    .sv { font-size:13px; font-weight:700; }
+    .chart-wrap { height:170px; position:relative; }
+    .tbl-sec { display:none; margin-top:4px; }
+    table { width:100%; border-collapse:collapse; }
+    th { font-size:10px; color:var(--muted); text-align:left; padding:5px 9px; border-bottom:1px solid var(--border); font-weight:400; white-space:nowrap; }
+    th.r,td.r { text-align:right; }
+    td { padding:7px 9px; border-bottom:1px solid #161616; font-size:12px; white-space:nowrap; }
+    tr:hover td { background:var(--surface2); }
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:none; align-items:center; justify-content:center; z-index:200; }
+    .overlay.open { display:flex; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px; width:450px; max-width:95vw; }
+    .modal h3 { font-size:13px; margin-bottom:10px; color:var(--accent); }
+    .modal p { font-size:11px; color:var(--muted); margin-bottom:9px; line-height:1.6; }
+    .modal p code { color:var(--text); background:var(--surface2); padding:1px 4px; border-radius:3px; }
+    .ir { display:flex; gap:6px; margin-bottom:7px; }
+    .ir input { flex:1; }
+    .tags { display:flex; flex-wrap:wrap; gap:4px; margin:7px 0; }
+    .tag { background:var(--surface2); border:1px solid var(--border); padding:2px 7px; border-radius:3px; font-size:10px; color:var(--muted); cursor:pointer; }
+    .tag:hover { border-color:var(--accent); color:var(--accent); }
+    .ma { display:flex; gap:7px; margin-top:12px; justify-content:flex-end; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    .empty { text-align:center; padding:50px 20px; color:var(--muted); grid-column:1/-1; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">FUTURES MONITOR <span>期货行情看板</span></div>
+  <div class="hdr-r"><span id="ts">—</span><div id="dot"></div></div>
+</header>
+<div class="ctrl">
+  <label>刷新间隔</label>
+  <select id="rSel">
+    <option value="10000">10秒</option>
+    <option value="30000" selected>30秒</option>
+    <option value="60000">1分钟</option>
+    <option value="300000">5分钟</option>
+    <option value="0">手动</option>
+  </select>
+  <button id="bRefresh">↻ 立即刷新</button>
+  <button class="s" id="bAdd">＋ 添加品种</button>
+  <button class="s" id="bView">≡ 列表视图</button>
+</div>
+<div class="tabs" id="tabs">
+  <div class="tab active" data-cat="all">全部</div>
+  <div class="tab" data-cat="贵金属">贵金属</div>
+  <div class="tab" data-cat="工业金属">工业金属</div>
+  <div class="tab" data-cat="能源">能源</div>
+  <div class="tab" data-cat="农产品">农产品</div>
+  <div class="tab" data-cat="化工">化工</div>
+  <div class="tab" data-cat="黑色金属">黑色金属</div>
+</div>
+<main>
+  <div id="detail">
+    <div class="dh">
+      <div class="dt" id="dtitle">—</div>
+      <div class="dc" id="dclose">✕</div>
+    </div>
+    <div class="dstats" id="dstats"></div>
+    <div class="chart-wrap"><canvas id="pc"></canvas></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="tbl-sec" id="tblSec">
+    <table><thead><tr>
+      <th>品种</th><th>分类</th>
+      <th class="r">现价</th><th class="r">涨跌</th><th class="r">涨跌幅</th>
+      <th class="r">今开</th><th class="r">最高</th><th class="r">最低</th>
+      <th class="r">成交量</th><th class="r">持仓量</th>
+    </tr></thead><tbody id="tbody"></tbody></table>
+  </div>
+</main>
+<div class="overlay" id="ov">
+  <div class="modal">
+    <h3>＋ 添加自选品种</h3>
+    <p>输入东方财富 secid：<code>市场号.代码</code><br>
+    上期所=<b>113</b>，大商所=<b>114</b>，郑商所=<b>115</b>，INE原油=<b>142</b>，
+    中金所=<b>8</b>，COMEX=<b>101</b>，布伦特=<b>112</b>，上金所T+D=<b>118</b></p>
+    <div class="ir">
+      <input id="inSid" placeholder="如 113.aum" />
+      <input id="inName" placeholder="名称（可选）" />
+      <input id="inCat" placeholder="分类" />
+      <button id="bOk">添加</button>
+    </div>
+    <p>快速添加：</p>
+    <div class="tags" id="qtags"></div>
+    <div class="ma"><button class="s" id="bClose">关闭</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const DEFAULTS = [
+  {secid:'113.aum',  name:'沪金主连',   unit:'元/克',    cat:'贵金属'},
+  {secid:'113.agm',  name:'沪银主连',   unit:'元/千克',  cat:'贵金属'},
+  {secid:'118.AUTD', name:'黄金T+D',    unit:'元/克',    cat:'贵金属'},
+  {secid:'118.AGTD', name:'白银T+D',    unit:'元/千克',  cat:'贵金属'},
+  {secid:'101.GC00Y',name:'COMEX黄金',  unit:'美元/盎司',cat:'贵金属'},
+  {secid:'101.SI00Y',name:'COMEX白银',  unit:'美分/盎司',cat:'贵金属'},
+  {secid:'113.cum',  name:'沪铜主连',   unit:'元/吨',    cat:'工业金属'},
+  {secid:'113.alm',  name:'沪铝主连',   unit:'元/吨',    cat:'工业金属'},
+  {secid:'113.znm',  name:'沪锌主连',   unit:'元/吨',    cat:'工业金属'},
+  {secid:'113.nim',  name:'沪镍主连',   unit:'元/吨',    cat:'工业金属'},
+  {secid:'142.scm',  name:'国内原油',   unit:'元/桶',    cat:'能源'},
+  {secid:'112.B00Y', name:'布伦特原油', unit:'美元/桶',  cat:'能源'},
+  {secid:'113.rbm',  name:'螺纹钢主连', unit:'元/吨',    cat:'黑色金属'},
+  {secid:'114.im',   name:'铁矿石主连', unit:'元/吨',    cat:'黑色金属'},
+  {secid:'114.mm',   name:'豆粕主连',   unit:'元/吨',    cat:'农产品'},
+  {secid:'114.ym',   name:'豆油主连',   unit:'元/吨',    cat:'农产品'},
+  {secid:'115.SRM',  name:'白糖主连',   unit:'元/吨',    cat:'农产品'},
+  {secid:'115.CFM',  name:'棉花主连',   unit:'元/吨',    cat:'农产品'},
+  {secid:'115.MAm',  name:'甲醇主连',   unit:'元/吨',    cat:'化工'},
+  {secid:'115.SAM',  name:'纯碱主连',   unit:'元/吨',    cat:'化工'},
+];
+const QUICK = [
+  {secid:'113.aum',  name:'沪金',      cat:'贵金属'},
+  {secid:'113.agm',  name:'沪银',      cat:'贵金属'},
+  {secid:'118.AUTD', name:'黄金T+D',   cat:'贵金属'},
+  {secid:'118.AGTD', name:'白银T+D',   cat:'贵金属'},
+  {secid:'101.GC00Y',name:'COMEX黄金', cat:'贵金属'},
+  {secid:'101.SI00Y',name:'COMEX白银', cat:'贵金属'},
+  {secid:'101.HG00Y',name:'COMEX铜',   cat:'工业金属'},
+  {secid:'113.cum',  name:'沪铜',      cat:'工业金属'},
+  {secid:'113.alm',  name:'沪铝',      cat:'工业金属'},
+  {secid:'113.nim',  name:'沪镍',      cat:'工业金属'},
+  {secid:'112.B00Y', name:'布伦特原油',cat:'能源'},
+  {secid:'142.scm',  name:'国内原油',  cat:'能源'},
+  {secid:'113.rbm',  name:'螺纹钢',    cat:'黑色金属'},
+  {secid:'114.im',   name:'铁矿石',    cat:'黑色金属'},
+  {secid:'114.mm',   name:'豆粕',      cat:'农产品'},
+  {secid:'115.SRM',  name:'白糖',      cat:'农产品'},
+  {secid:'115.CFM',  name:'棉花',      cat:'农产品'},
+  {secid:'115.MAm',  name:'甲醇',      cat:'化工'},
+  {secid:'115.SAM',  name:'纯碱',      cat:'化工'},
+  {secid:'113.pbm',  name:'沪铅',      cat:'工业金属'},
+  {secid:'113.spm',  name:'沪锡',      cat:'工业金属'},
+  {secid:'113.ssm',  name:'不锈钢',    cat:'黑色金属'},
+];
+
+let syms = (()=>{ try{const s=localStorage.getItem('ft_s');if(s)return JSON.parse(s);}catch(e){}return DEFAULTS; })();
+let quotes={}, hist={}, tab='all', tblView=false, sel=null, chart=null, timer=null;
+
+function save(){ localStorage.setItem('ft_s',JSON.stringify(syms)); }
+
+// API
+async function fetchOne(secid){
+  const url=`https://push2delay.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secid)}&fields=f43,f57,f58,f169,f170,f46,f44,f45,f50,f47,f48,f49&ut=fa5fd1943c7b386f172d6893dbfba10b&fltt=2&invt=2&_=${Date.now()}`;
+  const r=await fetch(url,{headers:{Referer:'https://quote.eastmoney.com/'}});
+  const j=await r.json(); return j.data;
+}
+async function refresh(){
+  document.getElementById('dot').className='';
+  const res=await Promise.allSettled(syms.map(s=>fetchOne(s.secid)));
+  let ok=0;
+  res.forEach((r,i)=>{
+    const s=syms[i];
+    if(r.status==='fulfilled'&&r.value){
+      const d=r.value;
+      quotes[s.secid]={price:d.f43,open:d.f46,high:d.f44,low:d.f45,vol:d.f47,amt:d.f48,chg:d.f170,pct:d.f169,settle:d.f50,oi:d.f49,upLim:d.f57,dnLim:d.f58};
+      if(!hist[s.secid])hist[s.secid]=[];
+      const p=parseFloat(d.f43);
+      if(!isNaN(p)&&p>0){hist[s.secid].push(p);if(hist[s.secid].length>60)hist[s.secid].shift();}
+      ok++;
+    }
+  });
+  document.getElementById('ts').textContent=new Date().toLocaleTimeString('zh-CN')+' 更新';
+  document.getElementById('dot').className=ok>0?'live':'err';
+  render();
+  if(sel)updateDetail(sel);
+}
+
+// Format
+function fmt(v,d=2){if(v===null||v===undefined||v==='-'||v==='')return'—';const n=parseFloat(v);if(isNaN(n))return'—';return n.toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function fv(v){if(!v||v==='-')return'—';const n=parseFloat(v);if(isNaN(n))return'—';if(n>=10000)return(n/10000).toFixed(1)+'万';return n.toFixed(0);}
+function dir(p){if(!p||p==='-')return'flat';const n=parseFloat(p);if(isNaN(n)||n===0)return'flat';return n>0?'up':'down';}
+function dec(secid){if(secid.startsWith('101.')||secid.startsWith('112.'))return 2;if(secid.startsWith('118.'))return 2;if(/113\.(au|ag)/.test(secid))return 2;return 0;}
+function sgn(v){const n=parseFloat(v);if(isNaN(n))return'';return n>0?'+':'';}
+
+function spark(prices, dc){
+  if(prices.length<2)return'';
+  const min=Math.min(...prices),max=Math.max(...prices),range=max-min||1;
+  const W=110,H=26,pad=2;
+  const pts=prices.map((p,i)=>{const x=pad+(i/(prices.length-1))*(W-2*pad);const y=pad+(1-(p-min)/range)*(H-2*pad);return`${x.toFixed(1)},${y.toFixed(1)}`;});
+  const col=dc==='up'?'#26a69a':dc==='down'?'#ef5350':'#444';
+  return`<svg width="${W}" height="${H}" style="display:block;margin:5px 0 4px"><polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+}
+
+function render(){
+  const f=tab==='all'?syms:syms.filter(s=>s.cat===tab);
+  const g=document.getElementById('grid');
+  if(!f.length){g.innerHTML='<div class="empty">无品种，点击「＋ 添加品种」</div>';renderTbl(f);return;}
+  g.innerHTML=f.map(sym=>{
+    const q=quotes[sym.secid]||{};
+    const d=dec(sym.secid),dc=dir(q.pct);
+    const pr=fmt(q.price,d);
+    const cn=q.chg&&q.chg!=='-'?parseFloat(q.chg):null;
+    const pn=q.pct&&q.pct!=='-'?parseFloat(q.pct):null;
+    const cs=cn!==null?sgn(cn)+fmt(q.chg,d):'—';
+    const ps=pn!==null?sgn(pn)+pn.toFixed(2)+'%':'—';
+    const ph=hist[sym.secid]||[];
+    return`<div class="card${sel===sym.secid?' sel':''}" onclick="pick('${sym.secid}')">
+      <button class="del" onclick="event.stopPropagation();rm('${sym.secid}')">✕</button>
+      <div class="card-hdr">
+        <div><div class="card-name">${sym.name}</div><div class="card-code">${sym.secid}</div></div>
+        <div class="card-cat">${sym.cat}</div>
+      </div>
+      <div class="card-price ${dc}">${pr}</div>
+      <div class="card-chg ${dc}">${cs}&nbsp;&nbsp;${ps}</div>
+      ${spark(ph.slice(-15),dc)}
+      <div class="card-meta">
+        <span>今开</span><span class="v">${fmt(q.open,d)}</span>
+        <span>最高</span><span class="v up">${fmt(q.high,d)}</span>
+        <span>成交量</span><span class="v">${fv(q.vol)}</span>
+        <span>最低</span><span class="v down">${fmt(q.low,d)}</span>
+      </div>
+      <div class="card-unit">${sym.unit||''}</div>
+    </div>`;
+  }).join('');
+  renderTbl(f);
+}
+
+function renderTbl(f){
+  if(!tblView)return;
+  document.getElementById('tbody').innerHTML=f.map(sym=>{
+    const q=quotes[sym.secid]||{},d=dec(sym.secid),dc=dir(q.pct);
+    const pn=q.pct&&q.pct!=='-'?parseFloat(q.pct):null;
+    return`<tr>
+      <td><div style="font-weight:600">${sym.name}</div><div style="font-size:10px;color:var(--muted)">${sym.secid}</div></td>
+      <td style="font-size:10px;color:var(--muted)">${sym.cat}</td>
+      <td class="r ${dc}" style="font-weight:700">${fmt(q.price,d)}</td>
+      <td class="r ${dc}">${q.chg&&q.chg!=='-'?sgn(q.chg)+fmt(q.chg,d):'—'}</td>
+      <td class="r ${dc}">${pn!==null?sgn(pn)+pn.toFixed(2)+'%':'—'}</td>
+      <td class="r">${fmt(q.open,d)}</td>
+      <td class="r up">${fmt(q.high,d)}</td>
+      <td class="r down">${fmt(q.low,d)}</td>
+      <td class="r">${fv(q.vol)}</td>
+      <td class="r">${fv(q.oi)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Detail panel
+function pick(secid){
+  if(sel===secid){sel=null;closeDetail();render();return;}
+  sel=secid;render();updateDetail(secid);
+}
+function updateDetail(secid){
+  const sym=syms.find(s=>s.secid===secid);if(!sym)return;
+  const q=quotes[secid]||{},d=dec(secid),dc=dir(q.pct);
+  const pn=q.pct&&q.pct!=='-'?parseFloat(q.pct):null;
+  const panel=document.getElementById('detail');
+  panel.className='open';
+  document.getElementById('dtitle').textContent=`${sym.name}  (${secid})  ${sym.unit||''}`;
+  const stats=[
+    ['现价',`<span class="${dc}">${fmt(q.price,d)}</span>`],
+    ['涨跌幅',`<span class="${dc}">${pn!==null?sgn(pn)+pn.toFixed(2)+'%':'—'}</span>`],
+    ['涨跌额',`<span class="${dc}">${q.chg&&q.chg!=='-'?sgn(q.chg)+fmt(q.chg,d):'—'}</span>`],
+    ['今开',fmt(q.open,d)],['最高',`<span class="up">${fmt(q.high,d)}</span>`],
+    ['最低',`<span class="down">${fmt(q.low,d)}</span>`],
+    ['成交量',fv(q.vol)],['持仓量',fv(q.oi)],
+    ['涨停价',`<span class="up">${fmt(q.upLim,d)}</span>`],
+    ['跌停价',`<span class="down">${fmt(q.dnLim,d)}</span>`],
+    ['结算价',fmt(q.settle,d)],
+  ];
+  document.getElementById('dstats').innerHTML=stats.map(([l,v])=>`<div class="stat"><div class="sl">${l}</div><div class="sv">${v}</div></div>`).join('');
+  // Chart
+  const ph=hist[secid]||[];
+  const ctx=document.getElementById('pc');
+  if(chart){chart.destroy();chart=null;}
+  if(ph.length>=2){
+    chart=new Chart(ctx,{
+      type:'line',
+      data:{labels:ph.map((_,i)=>i+1),datasets:[{data:ph,borderColor:dc==='up'?'#26a69a':dc==='down'?'#ef5350':'#555',borderWidth:1.5,pointRadius:0,fill:{target:'origin',above:'rgba(38,166,154,.08)',below:'rgba(239,83,80,.08)'}}]},
+      options:{animation:false,responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:c=>`${fmt(c.raw,d)} ${sym.unit||''}`}}},
+        scales:{x:{display:false},y:{grid:{color:'#1a1a1a'},ticks:{color:'#555',font:{size:10},callback:v=>fmt(v,d)}}}}
+    });
+  }
+}
+function closeDetail(){document.getElementById('detail').className='';if(chart){chart.destroy();chart=null;}}
+
+// Tabs
+document.getElementById('tabs').onclick=e=>{
+  const t=e.target.closest('.tab');if(!t)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');tab=t.dataset.cat;render();
+};
+
+// Controls
+let iv=30000;
+function startTimer(){clearInterval(timer);if(iv>0)timer=setInterval(refresh,iv);}
+document.getElementById('rSel').onchange=function(){iv=+this.value;startTimer();};
+document.getElementById('bRefresh').onclick=refresh;
+document.getElementById('bView').onclick=()=>{
+  tblView=!tblView;
+  document.getElementById('grid').style.display=tblView?'none':'grid';
+  document.getElementById('tblSec').style.display=tblView?'block':'none';
+  document.getElementById('bView').textContent=tblView?'⊞ 卡片视图':'≡ 列表视图';
+  render();
+};
+document.getElementById('dclose').onclick=()=>{sel=null;closeDetail();render();};
+
+// Modal
+document.getElementById('bAdd').onclick=()=>document.getElementById('ov').className='overlay open';
+document.getElementById('bClose').onclick=()=>document.getElementById('ov').className='overlay';
+document.getElementById('ov').onclick=e=>{if(e.target===document.getElementById('ov'))document.getElementById('ov').className='overlay';};
+
+// Quick tags
+document.getElementById('qtags').innerHTML=QUICK.map(q=>`<div class="tag" onclick="quickAdd('${q.secid}','${q.name}','${q.cat}')">${q.name}</div>`).join('');
+
+function quickAdd(secid,name,cat){
+  if(syms.find(s=>s.secid===secid)){alert('已存在');return;}
+  syms.push({secid,name,cat,unit:''});save();refresh();
+  document.getElementById('ov').className='overlay';
+}
+
+document.getElementById('bOk').onclick=()=>{
+  const secid=document.getElementById('inSid').value.trim();
+  const name=document.getElementById('inName').value.trim()||secid;
+  const cat=document.getElementById('inCat').value.trim()||'其他';
+  if(!secid)return;
+  if(syms.find(s=>s.secid===secid)){alert('已存在');return;}
+  syms.push({secid,name,cat,unit:''});save();refresh();
+  document.getElementById('inSid').value='';
+  document.getElementById('inName').value='';
+  document.getElementById('inCat').value='';
+};
+
+function rm(secid){
+  if(!confirm('移除 '+secid+'?'))return;
+  syms=syms.filter(s=>s.secid!==secid);
+  delete quotes[secid];delete hist[secid];
+  if(sel===secid){sel=null;closeDetail();}
+  save();render();
+}
+
+// Init
+refresh();startTimer();
+</script>
+
+<style>
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.inland-security-footer {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  right: 0;
+  width: fit-content;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tooltip-container {
+  position: relative;
+}
+
+.trigger-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background-color: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.minimax-link {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 300;
+  color: #adadad;
+  text-decoration: none;
+}
+
+.minimax-link:visited {
+  color: #adadad;
+}
+
+.minimax-link:hover {
+  color: #666666;
+}
+
+.tooltip-content {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  padding-bottom: 16px; /* 8px 内容间距 + 8px 用于鼠标移动的透明区域 */
+  font-size: 12px;
+  line-height: 17px;
+  background-color: #fafafa;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: #171717;
+}
+
+/* 创建透明的连接区域，让鼠标可以平滑移动到 tooltip */
+.tooltip-content::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 16px;
+}
+
+.tooltip-container:hover .tooltip-content {
+  display: flex;
+}
+
+.info-section {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.beian-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #171717;
+}
+
+.beian-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+}
+
+.underline-text {
+  color: #171717;
+  text-decoration: underline;
+}
+
+.underline-text:hover {
+  color: #000000;
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .trigger-content {
+    background-color: transparent;
+  }
+
+  .minimax-link,
+  .minimax-link:visited {
+    color: #666666;
+  }
+
+  .minimax-link:hover {
+    color: #adadad;
+  }
+
+  .tooltip-content {
+    background-color: #262626;
+    color: #ededed;
+  }
+
+  .beian-link,
+  .underline-text {
+    color: #ededed;
+  }
+
+  .underline-text:hover {
+    color: #ffffff;
+  }
+}
+
+</style>
+<div class="inland-security-footer">
+  <div class="tooltip-container">
+    <div class="trigger-content">
+      <a href="https://www.minimaxi.com/" target="_blank" rel="noreferrer" class="minimax-link">
+        <span>© 2026 MiniMax</span>
+      </a>
+    </div>
+    <div class="tooltip-content">
+      <section class="info-section">
+        <span>上海稀宇科技有限公司</span>
+      </section>
+
+      <section class="info-section">
+        <a class="beian-link" href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31010402010179" target="_blank" rel="noreferrer">
+          <img alt="hailuo-beian-icon" src="https://cdn.hailuoai.com/hailuo-video-web/public_assets/223037d3-79fd-4db0-a456-749f38a6a14b.png" class="beian-icon">
+          <span class="underline-text">沪公网安备31010402010179号</span>
+        </a>
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" class="underline-text">
+          沪ICP备2023003282号-38
+        </a>
+      </section>
+
+      <section class="info-section">
+        <span>模型名称：MiniMax</span>
+        <span>备案号：Shanghai-MiniMax-202505230046</span>
+      </section>
+
+      <section class="info-section">
+        <a href="https://agent.minimaxi.com/doc/zh/terms-of-service.html" target="_blank" rel="noreferrer" class="underline-text">
+          用户协议
+        </a>
+        <a href="https://agent.minimaxi.com/doc/zh/privacy-policy.html" target="_blank" rel="noreferrer" class="underline-text">
+          隐私政策
+        </a>
+      </section>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/**
+ * Iframe 元素高亮注入脚本
+ * 需要在目标网站中引入此脚本来支持跨域 iframe 高亮功能
+ *
+ * 使用方法：
+ * 1. 将此脚本添加到目标网站的 HTML 中
+ * 2. 或通过浏览器扩展、用户脚本等方式注入
+ */
+
+(function () {
+  "use strict";
+
+  // 检查是否在 iframe 中
+  if (window.self === window.top) {
+    return; // 不在 iframe 中，不执行
+  }
+
+  // 检查是否已经初始化过
+  if (window.__iframeHighlightInitialized) {
+    return;
+  }
+  window.__iframeHighlightInitialized = true;
+  console.log("Iframe 高亮脚本已加载");
+
+  // 创建高亮覆盖层
+  var overlay = document.createElement("div");
+  overlay.id = "iframe-highlight-overlay";
+  overlay.style.cssText = "\n    position: fixed;\n    top: 0;\n    left: 0;\n    width: 100vw;\n    height: 100vh;\n    pointer-events: none;\n    z-index: 999999;\n    overflow: hidden;\n  ";
+
+  // 创建悬停高亮框（虚线边框）
+  var highlightBox = document.createElement("div");
+  highlightBox.id = "iframe-highlight-box";
+  highlightBox.style.cssText = "\n    position: absolute;\n    border: 2px dashed #007AFF;\n    background: rgba(0, 122, 255, 0.08);\n    pointer-events: none;\n    display: none;\n    transition: all 0.1s ease;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);\n    border-radius: 2px;\n  ";
+
+  // 创建选中节点的常驻高亮框（实线边框）
+  var selectedBox = document.createElement("div");
+  selectedBox.id = "iframe-selected-box";
+  selectedBox.style.cssText = "\n    position: absolute;\n    border: 2px solid #007AFF;\n    pointer-events: none;\n    display: none;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 107, 53, 0.4);\n    border-radius: 2px;\n    z-index: 1000000;\n  ";
+
+  // 创建悬停标签显示
+  var tagLabel = document.createElement("div");
+  tagLabel.id = "iframe-tag-label";
+  tagLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 2px 6px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 2px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000001;\n    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n    font-weight: 500;\n  ";
+
+  // 创建选中节点标签
+  var selectedLabel = document.createElement("div");
+  selectedLabel.id = "iframe-selected-label";
+  selectedLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 3px 8px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 3px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000002;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\n    font-weight: 600;\n  ";
+  overlay.appendChild(highlightBox);
+  overlay.appendChild(selectedBox);
+  overlay.appendChild(tagLabel);
+  overlay.appendChild(selectedLabel);
+  document.body.appendChild(overlay);
+
+  // 存储当前选中的元素
+  var selectedElement = null;
+  var highlightEnabled = false;
+
+  // 更新选中元素的高亮显示
+  function updateSelectedHighlight(element) {
+    console.log("updateSelectedHighlight called with:", element);
+    if (!element) {
+      selectedBox.style.display = "none";
+      selectedLabel.style.display = "none";
+      selectedElement = null;
+      console.log("Cleared selected highlight");
+      return;
+    }
+    selectedElement = element;
+    var rect = element.getBoundingClientRect();
+    console.log("Selected element rect:", rect);
+
+    // 更新选中高亮框位置
+    selectedBox.style.display = "block";
+    selectedBox.style.left = "".concat(rect.left - 2, "px");
+    selectedBox.style.top = "".concat(rect.top - 2, "px");
+    selectedBox.style.width = "".concat(rect.width + 4, "px");
+    selectedBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新选中标签位置和内容
+    selectedLabel.style.display = "block";
+    selectedLabel.textContent = "\u2713 <".concat(element.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 28;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 5) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    var labelWidth = selectedLabel.offsetWidth || 100; // 预估宽度
+    if (labelLeft + labelWidth > window.innerWidth - 10) {
+      labelLeft = window.innerWidth - labelWidth - 10;
+    }
+    selectedLabel.style.left = "".concat(Math.max(5, labelLeft), "px");
+    selectedLabel.style.top = "".concat(labelTop, "px");
+    console.log("Selected highlight positioned at:", {
+      left: selectedBox.style.left,
+      top: selectedBox.style.top,
+      width: selectedBox.style.width,
+      height: selectedBox.style.height
+    });
+  }
+  function getElementSelector(element) {
+    if (!(element instanceof Element)) throw new Error('Argument must be a DOM element');
+    var segments = [];
+    var current = element;
+    while (current !== document.documentElement) {
+      var selector = '';
+      // 优先检查唯一ID
+      if (current.id && document.querySelectorAll("#".concat(current.id)).length === 1) {
+        segments.unshift("#".concat(current.id));
+        break; // ID唯一，无需继续向上
+      }
+
+      // 生成类名选择器（取第一个有效类名）
+      var classes = Array.from(current.classList).filter(function (c) {
+        return !c.startsWith('js-');
+      });
+      var className = classes.length > 0 ? ".".concat(classes[0]) : '';
+
+      // 生成位置索引（nth-child）
+      var tag = current.tagName.toLowerCase();
+      if (!className) {
+        var siblings = Array.from(current.parentNode.children);
+        var index = siblings.findIndex(function (el) {
+          return el === current;
+        }) + 1;
+        selector = "".concat(tag, ":nth-child(").concat(index, ")");
+      } else {
+        selector = className;
+      }
+      segments.unshift(selector);
+      current = current.parentElement;
+    }
+
+    // 处理根元素
+    if (current === document.documentElement) {
+      segments.unshift('html');
+    }
+    return segments.join(' > ');
+  }
+
+  // 获取元素文本内容
+  function getElementText(element) {
+    var _element$textContent;
+    if (element.tagName === "INPUT") {
+      return element.value || element.placeholder || "";
+    }
+    if (element.tagName === "TEXTAREA") {
+      return element.value || element.placeholder || "";
+    }
+    var text = ((_element$textContent = element.textContent) === null || _element$textContent === void 0 ? void 0 : _element$textContent.trim()) || "";
+    return text.length > 50 ? text.substring(0, 50) + "..." : text;
+  }
+
+  // 获取元素属性信息
+  function getElementAttributes(element) {
+    var attrs = {};
+    for (var i = 0; i < element.attributes.length; i++) {
+      var attr = element.attributes[i];
+      attrs[attr.name] = attr.value;
+    }
+    return attrs;
+  }
+
+  // 鼠标悬停事件处理
+  function handleMouseOver(e) {
+    if (!highlightEnabled) return;
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免高亮 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 如果是已选中的元素，不显示悬停高亮
+    if (target === selectedElement) {
+      highlightBox.style.display = "none";
+      tagLabel.style.display = "none";
+      return;
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+
+    // 更新悬停高亮框位置
+    highlightBox.style.display = "block";
+    highlightBox.style.left = "".concat(rect.left - 2, "px");
+    highlightBox.style.top = "".concat(rect.top - 2, "px");
+    highlightBox.style.width = "".concat(rect.width + 4, "px");
+    highlightBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新标签位置和内容
+    tagLabel.style.display = "block";
+    tagLabel.textContent = "<".concat(target.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 22;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 0) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    if (labelLeft + tagLabel.offsetWidth > window.innerWidth) {
+      labelLeft = window.innerWidth - tagLabel.offsetWidth - 5;
+    }
+    tagLabel.style.left = "".concat(Math.max(0, labelLeft), "px");
+    tagLabel.style.top = "".concat(labelTop, "px");
+
+    // 发送消息到父窗口
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 鼠标离开事件处理
+  function handleMouseOut(e) {
+    if (!highlightEnabled) return;
+    var relatedTarget = e.relatedTarget;
+
+    // 如果鼠标移动到高亮相关元素上，不隐藏高亮
+    if (relatedTarget && (relatedTarget === highlightBox || relatedTarget === tagLabel || relatedTarget === overlay || relatedTarget === selectedBox || relatedTarget === selectedLabel)) {
+      return;
+    }
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: null,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 点击事件处理
+  function handleClick(e) {
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免处理 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 检查是否是交互元素，这些元素需要保留默认行为
+    var isInteractiveElement = ['input', 'textarea', 'select', 'button', 'a'].includes(target.tagName.toLowerCase());
+
+    // 如果高亮功能启用，对于非交互元素阻止默认行为和事件传播
+    if (highlightEnabled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+    console.log("Element clicked:", {
+      tagName: target.tagName,
+      selector: selector,
+      rect: rect
+    });
+
+    // 立即更新选中高亮
+    updateSelectedHighlight(target);
+
+    // 隐藏悬停高亮，因为现在是选中状态
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-click",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 监听来自父窗口的消息
+  function handleParentMessage(event) {
+    console.log("Received message from parent:", event.data);
+    if (event.data.type === "iframe-highlight-toggle") {
+      var enabled = event.data.enabled;
+      console.log("Highlight toggle:", enabled);
+      if (enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "enable-iframe-highlight") {
+      console.log("Enable iframe highlight");
+      enableHighlight();
+    } else if (event.data.type === "disable-iframe-highlight") {
+      console.log("Disable iframe highlight");
+      disableHighlight();
+    } else if (event.data.type === "toggle-iframe-highlight") {
+      var _enabled = event.data.enabled !== undefined ? event.data.enabled : !highlightEnabled;
+      console.log("Toggle iframe highlight to:", _enabled);
+      if (_enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "update-selected-element") {
+      var selector = event.data.selector;
+      console.log("Update selected element with selector:", selector);
+      if (selector) {
+        try {
+          var element = document.querySelector(selector);
+          console.log("Found element by selector:", element);
+          updateSelectedHighlight(element);
+        } catch (error) {
+          console.warn("Failed to select element:", error);
+          updateSelectedHighlight(null);
+        }
+      } else {
+        updateSelectedHighlight(null);
+      }
+    } else if (event.data.type === "clear-selected-element") {
+      console.log("Clear selected element");
+      updateSelectedHighlight(null);
+    }
+  }
+
+  // 启用高亮功能
+  function enableHighlight() {
+    console.log("Enabling highlight");
+    document.addEventListener("mouseover", handleMouseOver, true);
+    document.addEventListener("mouseout", handleMouseOut, true);
+    document.addEventListener("click", handleClick, true);
+    highlightEnabled = true;
+    overlay.style.display = "block";
+  }
+
+  // 禁用高亮功能
+  function disableHighlight() {
+    console.log("Disabling highlight");
+    highlightEnabled = false;
+    // 保持事件监听器，但通过 highlightEnabled 变量控制行为
+    // 这样可以保留选中状态的显示
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    // 不隐藏 selectedBox 和 selectedLabel，保留选中状态
+  }
+
+  // 完全禁用高亮功能（移除所有监听器）
+  function fullyDisableHighlight() {
+    console.log("Fully disabling highlight");
+    highlightEnabled = false;
+    document.removeEventListener("mouseover", handleMouseOver, true);
+    document.removeEventListener("mouseout", handleMouseOut, true);
+    document.removeEventListener("click", handleClick, true);
+    overlay.style.display = "none";
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    selectedBox.style.display = "none";
+    selectedLabel.style.display = "none";
+  }
+
+  // 添加事件监听
+  enableHighlight();
+  window.addEventListener("message", handleParentMessage);
+
+  // 暴露全局函数供外部调用
+  window.__iframeHighlightControl = {
+    enable: enableHighlight,
+    disable: disableHighlight,
+    fullyDisable: fullyDisableHighlight,
+    isEnabled: function isEnabled() {
+      return highlightEnabled;
+    },
+    getSelectedElement: function getSelectedElement() {
+      return selectedElement;
+    },
+    updateSelected: updateSelectedHighlight,
+    // 通过消息发送开关控制
+    sendToggleMessage: function sendToggleMessage(enabled) {
+      window.parent.postMessage({
+        type: 'iframe-highlight-status',
+        enabled: enabled || highlightEnabled,
+        source: 'iframe-highlight-injector'
+      }, '*');
+    }
+  };
+
+  // 通知父窗口脚本已加载
+  try {
+    window.parent.postMessage({
+      type: "iframe-highlight-ready",
+      data: {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      },
+      source: "iframe-highlight-injector"
+    }, "*");
+  } catch (error) {
+    console.warn("无法发送就绪消息到父窗口:", error);
+  }
+
+  // 清理函数
+  window.__iframeHighlightCleanup = function () {
+    fullyDisableHighlight();
+    window.removeEventListener("message", handleParentMessage);
+    if (overlay.parentElement) {
+      overlay.parentElement.removeChild(overlay);
+    }
+    delete window.__iframeHighlightInitialized;
+    delete window.__iframeHighlightCleanup;
+  };
+})();
+
+</script>
+</body>
+</html>
