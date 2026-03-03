@@ -3,399 +3,171 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>期货行情看板</title>
-  <style>
-    :root {
-      --bg:#0a0a0a; --surface:#141414; --surface2:#1c1c1c; --border:#252525;
-      --text:#e8e8e8; --muted:#555; --up:#26a69a; --down:#ef5350;
-      --flat:#777; --accent:#e8c96a;
-    }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { background:var(--bg); color:var(--text); font-family:'SF Mono','Fira Code',Consolas,Menlo,monospace; font-size:13px; min-height:100vh; }
-    header { display:flex; align-items:center; justify-content:space-between; padding:13px 22px; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:100; }
-    .logo { font-size:13px; font-weight:700; color:var(--accent); letter-spacing:.05em; }
-    .logo span { color:var(--muted); font-weight:400; font-size:11px; margin-left:8px; }
-    .hdr-r { display:flex; align-items:center; gap:12px; }
-    #ts { color:var(--muted); font-size:11px; }
-    #dot { width:7px; height:7px; border-radius:50%; background:var(--muted); transition:background .3s; }
-    #dot.live { background:var(--up); box-shadow:0 0 5px var(--up); }
-    #dot.err  { background:var(--down); }
-    .ctrl { padding:9px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
-    .ctrl label { color:var(--muted); font-size:11px; }
-    select,input[type=text] { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-family:inherit; font-size:12px; outline:none; }
-    select:focus,input:focus { border-color:var(--accent); }
-    button { background:var(--accent); color:#0a0a0a; border:none; padding:5px 11px; border-radius:4px; font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; transition:opacity .2s; }
-    button:hover { opacity:.85; }
-    button.s { background:var(--surface2); color:var(--text); border:1px solid var(--border); font-weight:400; }
-    .tabs { padding:0 22px; display:flex; border-bottom:1px solid var(--border); overflow-x:auto; }
-    .tab { padding:7px 13px; font-size:11px; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; flex-shrink:0; }
-    .tab:hover { color:var(--text); }
-    .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
-    main { padding:16px 22px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:9px; }
-    .card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:13px; cursor:pointer; transition:border-color .2s; position:relative; overflow:hidden; }
-    .card:hover { border-color:#3a3a3a; }
-    .card.sel { border-color:var(--accent); }
-    .card-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px; }
-    .card-name { font-weight:700; font-size:13px; }
-    .card-code { color:var(--muted); font-size:10px; margin-top:2px; }
-    .card-cat { font-size:9px; padding:2px 5px; border-radius:3px; background:var(--surface2); color:var(--muted); border:1px solid var(--border); flex-shrink:0; }
-    .card-price { font-size:20px; font-weight:700; margin-bottom:3px; }
-    .card-chg { font-size:12px; margin-bottom:8px; }
-    .up { color:var(--up); } .down { color:var(--down); } .flat { color:var(--flat); }
-    .card-meta { display:grid; grid-template-columns:1fr 1fr; gap:2px 7px; font-size:10px; color:var(--muted); }
-    .v { color:var(--text); }
-    .card-unit { font-size:9px; color:var(--muted); margin-top:7px; text-align:right; }
-    .del { position:absolute; top:5px; right:5px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 4px; display:none; line-height:1; }
-    .card:hover .del { display:block; }
-    .del:hover { color:var(--down); }
-    #detail { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px; display:none; }
-    #detail.open { display:block; }
-    .dh { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-    .dt { font-size:14px; font-weight:700; }
-    .dc { cursor:pointer; color:var(--muted); font-size:17px; }
-    .dc:hover { color:var(--text); }
-    .dstats { display:grid; grid-template-columns:repeat(auto-fill,minmax(105px,1fr)); gap:9px; margin-bottom:15px; }
-    .stat { background:var(--surface2); border-radius:4px; padding:9px; }
-    .sl { font-size:10px; color:var(--muted); margin-bottom:3px; }
-    .sv { font-size:13px; font-weight:700; }
-    .chart-wrap { height:170px; position:relative; }
-    .tbl-sec { display:none; margin-top:4px; }
-    table { width:100%; border-collapse:collapse; }
-    th { font-size:10px; color:var(--muted); text-align:left; padding:5px 9px; border-bottom:1px solid var(--border); font-weight:400; white-space:nowrap; }
-    th.r,td.r { text-align:right; }
-    td { padding:7px 9px; border-bottom:1px solid #161616; font-size:12px; white-space:nowrap; }
-    tr:hover td { background:var(--surface2); }
-    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:none; align-items:center; justify-content:center; z-index:200; }
-    .overlay.open { display:flex; }
-    .modal { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px; width:450px; max-width:95vw; }
-    .modal h3 { font-size:13px; margin-bottom:10px; color:var(--accent); }
-    .modal p { font-size:11px; color:var(--muted); margin-bottom:9px; line-height:1.6; }
-    .modal p code { color:var(--text); background:var(--surface2); padding:1px 4px; border-radius:3px; }
-    .ir { display:flex; gap:6px; margin-bottom:7px; }
-    .ir input { flex:1; }
-    .tags { display:flex; flex-wrap:wrap; gap:4px; margin:7px 0; }
-    .tag { background:var(--surface2); border:1px solid var(--border); padding:2px 7px; border-radius:3px; font-size:10px; color:var(--muted); cursor:pointer; }
-    .tag:hover { border-color:var(--accent); color:var(--accent); }
-    .ma { display:flex; gap:7px; margin-top:12px; justify-content:flex-end; }
-    ::-webkit-scrollbar { width:5px; height:5px; }
-    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-    .empty { text-align:center; padding:50px 20px; color:var(--muted); grid-column:1/-1; }
-  </style>
+  <title>Futures Pro - 期货行情看板</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<header>
-  <div class="logo">FUTURES MONITOR <span>期货行情看板</span></div>
-  <div class="hdr-r"><span id="ts">—</span><div id="dot"></div></div>
-</header>
-<div class="ctrl">
-  <label>刷新间隔</label>
-  <select id="rSel">
-    <option value="10000">10秒</option>
-    <option value="30000" selected>30秒</option>
-    <option value="60000">1分钟</option>
-    <option value="300000">5分钟</option>
-    <option value="0">手动</option>
-  </select>
-  <button id="bRefresh">↻ 立即刷新</button>
-  <button class="s" id="bAdd">＋ 添加品种</button>
-  <button class="s" id="bView">≡ 列表视图</button>
-</div>
-<div class="tabs" id="tabs">
-  <div class="tab active" data-cat="all">全部</div>
-  <div class="tab" data-cat="贵金属">贵金属</div>
-  <div class="tab" data-cat="工业金属">工业金属</div>
-  <div class="tab" data-cat="能源">能源</div>
-  <div class="tab" data-cat="农产品">农产品</div>
-  <div class="tab" data-cat="化工">化工</div>
-  <div class="tab" data-cat="黑色金属">黑色金属</div>
-</div>
-<main>
-  <div id="detail">
-    <div class="dh">
-      <div class="dt" id="dtitle">—</div>
-      <div class="dc" id="dclose">✕</div>
-    </div>
-    <div class="dstats" id="dstats"></div>
-    <div class="chart-wrap"><canvas id="pc"></canvas></div>
-  </div>
-  <div class="grid" id="grid"></div>
-  <div class="tbl-sec" id="tblSec">
-    <table><thead><tr>
-      <th>品种</th><th>分类</th>
-      <th class="r">现价</th><th class="r">涨跌</th><th class="r">涨跌幅</th>
-      <th class="r">今开</th><th class="r">最高</th><th class="r">最低</th>
-      <th class="r">成交量</th><th class="r">持仓量</th>
-    </tr></thead><tbody id="tbody"></tbody></table>
-  </div>
-</main>
-<div class="overlay" id="ov">
-  <div class="modal">
-    <h3>＋ 添加自选品种</h3>
-    <p>输入东方财富 secid：<code>市场号.代码</code><br>
-    上期所=<b>113</b>，大商所=<b>114</b>，郑商所=<b>115</b>，INE原油=<b>142</b>，
-    中金所=<b>8</b>，COMEX=<b>101</b>，布伦特=<b>112</b>，上金所T+D=<b>118</b></p>
-    <div class="ir">
-      <input id="inSid" placeholder="如 113.aum" />
-      <input id="inName" placeholder="名称（可选）" />
-      <input id="inCat" placeholder="分类" />
-      <button id="bOk">添加</button>
-    </div>
-    <p>快速添加：</p>
-    <div class="tags" id="qtags"></div>
-    <div class="ma"><button class="s" id="bClose">关闭</button></div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-const DEFAULTS = [
-  {secid:'113.aum',  name:'沪金主连',   unit:'元/克',    cat:'贵金属'},
-  {secid:'113.agm',  name:'沪银主连',   unit:'元/千克',  cat:'贵金属'},
-  {secid:'118.AUTD', name:'黄金T+D',    unit:'元/克',    cat:'贵金属'},
-  {secid:'118.AGTD', name:'白银T+D',    unit:'元/千克',  cat:'贵金属'},
-  {secid:'101.GC00Y',name:'COMEX黄金',  unit:'美元/盎司',cat:'贵金属'},
-  {secid:'101.SI00Y',name:'COMEX白银',  unit:'美分/盎司',cat:'贵金属'},
-  {secid:'113.cum',  name:'沪铜主连',   unit:'元/吨',    cat:'工业金属'},
-  {secid:'113.alm',  name:'沪铝主连',   unit:'元/吨',    cat:'工业金属'},
-  {secid:'113.znm',  name:'沪锌主连',   unit:'元/吨',    cat:'工业金属'},
-  {secid:'113.nim',  name:'沪镍主连',   unit:'元/吨',    cat:'工业金属'},
-  {secid:'142.scm',  name:'国内原油',   unit:'元/桶',    cat:'能源'},
-  {secid:'112.B00Y', name:'布伦特原油', unit:'美元/桶',  cat:'能源'},
-  {secid:'113.rbm',  name:'螺纹钢主连', unit:'元/吨',    cat:'黑色金属'},
-  {secid:'114.im',   name:'铁矿石主连', unit:'元/吨',    cat:'黑色金属'},
-  {secid:'114.mm',   name:'豆粕主连',   unit:'元/吨',    cat:'农产品'},
-  {secid:'114.ym',   name:'豆油主连',   unit:'元/吨',    cat:'农产品'},
-  {secid:'115.SRM',  name:'白糖主连',   unit:'元/吨',    cat:'农产品'},
-  {secid:'115.CFM',  name:'棉花主连',   unit:'元/吨',    cat:'农产品'},
-  {secid:'115.MAm',  name:'甲醇主连',   unit:'元/吨',    cat:'化工'},
-  {secid:'115.SAM',  name:'纯碱主连',   unit:'元/吨',    cat:'化工'},
-];
-const QUICK = [
-  {secid:'113.aum',  name:'沪金',      cat:'贵金属'},
-  {secid:'113.agm',  name:'沪银',      cat:'贵金属'},
-  {secid:'118.AUTD', name:'黄金T+D',   cat:'贵金属'},
-  {secid:'118.AGTD', name:'白银T+D',   cat:'贵金属'},
-  {secid:'101.GC00Y',name:'COMEX黄金', cat:'贵金属'},
-  {secid:'101.SI00Y',name:'COMEX白银', cat:'贵金属'},
-  {secid:'101.HG00Y',name:'COMEX铜',   cat:'工业金属'},
-  {secid:'113.cum',  name:'沪铜',      cat:'工业金属'},
-  {secid:'113.alm',  name:'沪铝',      cat:'工业金属'},
-  {secid:'113.nim',  name:'沪镍',      cat:'工业金属'},
-  {secid:'112.B00Y', name:'布伦特原油',cat:'能源'},
-  {secid:'142.scm',  name:'国内原油',  cat:'能源'},
-  {secid:'113.rbm',  name:'螺纹钢',    cat:'黑色金属'},
-  {secid:'114.im',   name:'铁矿石',    cat:'黑色金属'},
-  {secid:'114.mm',   name:'豆粕',      cat:'农产品'},
-  {secid:'115.SRM',  name:'白糖',      cat:'农产品'},
-  {secid:'115.CFM',  name:'棉花',      cat:'农产品'},
-  {secid:'115.MAm',  name:'甲醇',      cat:'化工'},
-  {secid:'115.SAM',  name:'纯碱',      cat:'化工'},
-  {secid:'113.pbm',  name:'沪铅',      cat:'工业金属'},
-  {secid:'113.spm',  name:'沪锡',      cat:'工业金属'},
-  {secid:'113.ssm',  name:'不锈钢',    cat:'黑色金属'},
-];
-
-let syms = (()=>{ try{const s=localStorage.getItem('ft_s');if(s)return JSON.parse(s);}catch(e){}return DEFAULTS; })();
-let quotes={}, hist={}, tab='all', tblView=false, sel=null, chart=null, timer=null;
-
-function save(){ localStorage.setItem('ft_s',JSON.stringify(syms)); }
-
-// API
-async function fetchOne(secid){
-  const url=`https://push2delay.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secid)}&fields=f43,f57,f58,f169,f170,f46,f44,f45,f50,f47,f48,f49&ut=fa5fd1943c7b386f172d6893dbfba10b&fltt=2&invt=2&_=${Date.now()}`;
-  const r=await fetch(url,{headers:{Referer:'https://quote.eastmoney.com/'}});
-  const j=await r.json(); return j.data;
-}
-async function refresh(){
-  document.getElementById('dot').className='';
-  const res=await Promise.allSettled(syms.map(s=>fetchOne(s.secid)));
-  let ok=0;
-  res.forEach((r,i)=>{
-    const s=syms[i];
-    if(r.status==='fulfilled'&&r.value){
-      const d=r.value;
-      quotes[s.secid]={price:d.f43,open:d.f46,high:d.f44,low:d.f45,vol:d.f47,amt:d.f48,chg:d.f170,pct:d.f169,settle:d.f50,oi:d.f49,upLim:d.f57,dnLim:d.f58};
-      if(!hist[s.secid])hist[s.secid]=[];
-      const p=parseFloat(d.f43);
-      if(!isNaN(p)&&p>0){hist[s.secid].push(p);if(hist[s.secid].length>60)hist[s.secid].shift();}
-      ok++;
-    }
-  });
-  document.getElementById('ts').textContent=new Date().toLocaleTimeString('zh-CN')+' 更新';
-  document.getElementById('dot').className=ok>0?'live':'err';
-  render();
-  if(sel)updateDetail(sel);
-}
-
-// Format
-function fmt(v,d=2){if(v===null||v===undefined||v==='-'||v==='')return'—';const n=parseFloat(v);if(isNaN(n))return'—';return n.toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d});}
-function fv(v){if(!v||v==='-')return'—';const n=parseFloat(v);if(isNaN(n))return'—';if(n>=10000)return(n/10000).toFixed(1)+'万';return n.toFixed(0);}
-function dir(p){if(!p||p==='-')return'flat';const n=parseFloat(p);if(isNaN(n)||n===0)return'flat';return n>0?'up':'down';}
-function dec(secid){if(secid.startsWith('101.')||secid.startsWith('112.'))return 2;if(secid.startsWith('118.'))return 2;if(/113\.(au|ag)/.test(secid))return 2;return 0;}
-function sgn(v){const n=parseFloat(v);if(isNaN(n))return'';return n>0?'+':'';}
-
-function spark(prices, dc){
-  if(prices.length<2)return'';
-  const min=Math.min(...prices),max=Math.max(...prices),range=max-min||1;
-  const W=110,H=26,pad=2;
-  const pts=prices.map((p,i)=>{const x=pad+(i/(prices.length-1))*(W-2*pad);const y=pad+(1-(p-min)/range)*(H-2*pad);return`${x.toFixed(1)},${y.toFixed(1)}`;});
-  const col=dc==='up'?'#26a69a':dc==='down'?'#ef5350':'#444';
-  return`<svg width="${W}" height="${H}" style="display:block;margin:5px 0 4px"><polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
-}
-
-function render(){
-  const f=tab==='all'?syms:syms.filter(s=>s.cat===tab);
-  const g=document.getElementById('grid');
-  if(!f.length){g.innerHTML='<div class="empty">无品种，点击「＋ 添加品种」</div>';renderTbl(f);return;}
-  g.innerHTML=f.map(sym=>{
-    const q=quotes[sym.secid]||{};
-    const d=dec(sym.secid),dc=dir(q.pct);
-    const pr=fmt(q.price,d);
-    const cn=q.chg&&q.chg!=='-'?parseFloat(q.chg):null;
-    const pn=q.pct&&q.pct!=='-'?parseFloat(q.pct):null;
-    const cs=cn!==null?sgn(cn)+fmt(q.chg,d):'—';
-    const ps=pn!==null?sgn(pn)+pn.toFixed(2)+'%':'—';
-    const ph=hist[sym.secid]||[];
-    return`<div class="card${sel===sym.secid?' sel':''}" onclick="pick('${sym.secid}')">
-      <button class="del" onclick="event.stopPropagation();rm('${sym.secid}')">✕</button>
-      <div class="card-hdr">
-        <div><div class="card-name">${sym.name}</div><div class="card-code">${sym.secid}</div></div>
-        <div class="card-cat">${sym.cat}</div>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="logo-icon">📊</span>
+          <span class="logo-text">Futures Pro</span>
+        </div>
       </div>
-      <div class="card-price ${dc}">${pr}</div>
-      <div class="card-chg ${dc}">${cs}&nbsp;&nbsp;${ps}</div>
-      ${spark(ph.slice(-15),dc)}
-      <div class="card-meta">
-        <span>今开</span><span class="v">${fmt(q.open,d)}</span>
-        <span>最高</span><span class="v up">${fmt(q.high,d)}</span>
-        <span>成交量</span><span class="v">${fv(q.vol)}</span>
-        <span>最低</span><span class="v down">${fmt(q.low,d)}</span>
+      <div class="header-center">
+        <div class="data-source-selector">
+          <label>数据源</label>
+          <select id="dataSource">
+            <option value="eastmoney">东方财富</option>
+            <option value="sina">新浪财经</option>
+            <option value="ifeng">凤凰财经</option>
+          </select>
+        </div>
       </div>
-      <div class="card-unit">${sym.unit||''}</div>
-    </div>`;
-  }).join('');
-  renderTbl(f);
-}
+      <div class="header-right">
+        <div class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="status-text" id="statusText">连接中...</span>
+        </div>
+        <div class="last-update" id="lastUpdate">--:--:--</div>
+      </div>
+    </header>
 
-function renderTbl(f){
-  if(!tblView)return;
-  document.getElementById('tbody').innerHTML=f.map(sym=>{
-    const q=quotes[sym.secid]||{},d=dec(sym.secid),dc=dir(q.pct);
-    const pn=q.pct&&q.pct!=='-'?parseFloat(q.pct):null;
-    return`<tr>
-      <td><div style="font-weight:600">${sym.name}</div><div style="font-size:10px;color:var(--muted)">${sym.secid}</div></td>
-      <td style="font-size:10px;color:var(--muted)">${sym.cat}</td>
-      <td class="r ${dc}" style="font-weight:700">${fmt(q.price,d)}</td>
-      <td class="r ${dc}">${q.chg&&q.chg!=='-'?sgn(q.chg)+fmt(q.chg,d):'—'}</td>
-      <td class="r ${dc}">${pn!==null?sgn(pn)+pn.toFixed(2)+'%':'—'}</td>
-      <td class="r">${fmt(q.open,d)}</td>
-      <td class="r up">${fmt(q.high,d)}</td>
-      <td class="r down">${fmt(q.low,d)}</td>
-      <td class="r">${fv(q.vol)}</td>
-      <td class="r">${fv(q.oi)}</td>
-    </tr>`;
-  }).join('');
-}
+    <!-- Navigation -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-page="home">
+        <span class="tab-icon">🏠</span>
+        <span>自选首页</span>
+      </button>
+      <button class="nav-tab" data-page="metals">
+        <span>贵金属</span>
+      </button>
+      <button class="nav-tab" data-page="metals-industrial">
+        <span>工业金属</span>
+      </button>
+      <button class="nav-tab" data-page="energy">
+        <span>能源</span>
+      </button>
+      <button class="nav-tab" data-page="agriculture">
+        <span>农产品</span>
+      </button>
+      <button class="nav-tab" data-page="chemical">
+        <span>化工</span>
+      </button>
+      <button class="nav-tab" data-page="black">
+        <span>黑色金属</span>
+      </button>
+    </nav>
 
-// Detail panel
-function pick(secid){
-  if(sel===secid){sel=null;closeDetail();render();return;}
-  sel=secid;render();updateDetail(secid);
-}
-function updateDetail(secid){
-  const sym=syms.find(s=>s.secid===secid);if(!sym)return;
-  const q=quotes[secid]||{},d=dec(secid),dc=dir(q.pct);
-  const pn=q.pct&&q.pct!=='-'?parseFloat(q.pct):null;
-  const panel=document.getElementById('detail');
-  panel.className='open';
-  document.getElementById('dtitle').textContent=`${sym.name}  (${secid})  ${sym.unit||''}`;
-  const stats=[
-    ['现价',`<span class="${dc}">${fmt(q.price,d)}</span>`],
-    ['涨跌幅',`<span class="${dc}">${pn!==null?sgn(pn)+pn.toFixed(2)+'%':'—'}</span>`],
-    ['涨跌额',`<span class="${dc}">${q.chg&&q.chg!=='-'?sgn(q.chg)+fmt(q.chg,d):'—'}</span>`],
-    ['今开',fmt(q.open,d)],['最高',`<span class="up">${fmt(q.high,d)}</span>`],
-    ['最低',`<span class="down">${fmt(q.low,d)}</span>`],
-    ['成交量',fv(q.vol)],['持仓量',fv(q.oi)],
-    ['涨停价',`<span class="up">${fmt(q.upLim,d)}</span>`],
-    ['跌停价',`<span class="down">${fmt(q.dnLim,d)}</span>`],
-    ['结算价',fmt(q.settle,d)],
-  ];
-  document.getElementById('dstats').innerHTML=stats.map(([l,v])=>`<div class="stat"><div class="sl">${l}</div><div class="sv">${v}</div></div>`).join('');
-  // Chart
-  const ph=hist[secid]||[];
-  const ctx=document.getElementById('pc');
-  if(chart){chart.destroy();chart=null;}
-  if(ph.length>=2){
-    chart=new Chart(ctx,{
-      type:'line',
-      data:{labels:ph.map((_,i)=>i+1),datasets:[{data:ph,borderColor:dc==='up'?'#26a69a':dc==='down'?'#ef5350':'#555',borderWidth:1.5,pointRadius:0,fill:{target:'origin',above:'rgba(38,166,154,.08)',below:'rgba(239,83,80,.08)'}}]},
-      options:{animation:false,responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:c=>`${fmt(c.raw,d)} ${sym.unit||''}`}}},
-        scales:{x:{display:false},y:{grid:{color:'#1a1a1a'},ticks:{color:'#555',font:{size:10},callback:v=>fmt(v,d)}}}}
-    });
-  }
-}
-function closeDetail(){document.getElementById('detail').className='';if(chart){chart.destroy();chart=null;}}
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Home Page -->
+      <section id="homePage" class="page active">
+        <!-- Huge Volatility Section -->
+        <div class="volatility-alert" id="volatilityAlert" style="display: none;">
+          <div class="alert-header">
+            <span class="alert-icon">⚡</span>
+            <span class="alert-title">巨大波动品种</span>
+            <span class="alert-subtitle">近2日涨跌幅 > 4%</span>
+          </div>
+          <div class="alert-cards" id="volatilityCards"></div>
+        </div>
 
-// Tabs
-document.getElementById('tabs').onclick=e=>{
-  const t=e.target.closest('.tab');if(!t)return;
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-  t.classList.add('active');tab=t.dataset.cat;render();
-};
+        <!-- Favorites Section -->
+        <div class="section-header">
+          <h2 class="section-title">我的自选</h2>
+          <button class="btn-add" id="addFavorite">
+            <span>+</span> 添加品种
+          </button>
+        </div>
+        <div class="favorites-grid" id="favoritesGrid">
+          <div class="empty-state">
+            <p>暂无自选品种</p>
+            <p class="hint">点击上方「添加品种」按钮添加</p>
+          </div>
+        </div>
+      </section>
 
-// Controls
-let iv=30000;
-function startTimer(){clearInterval(timer);if(iv>0)timer=setInterval(refresh,iv);}
-document.getElementById('rSel').onchange=function(){iv=+this.value;startTimer();};
-document.getElementById('bRefresh').onclick=refresh;
-document.getElementById('bView').onclick=()=>{
-  tblView=!tblView;
-  document.getElementById('grid').style.display=tblView?'none':'grid';
-  document.getElementById('tblSec').style.display=tblView?'block':'none';
-  document.getElementById('bView').textContent=tblView?'⊞ 卡片视图':'≡ 列表视图';
-  render();
-};
-document.getElementById('dclose').onclick=()=>{sel=null;closeDetail();render();};
+      <!-- Category Pages (reused for all categories) -->
+      <section id="categoryPage" class="page">
+        <div class="category-header">
+          <h2 class="category-title" id="categoryTitle">贵金属</h2>
+          <div class="category-controls">
+            <select id="refreshInterval">
+              <option value="10000">10秒</option>
+              <option value="30000" selected>30秒</option>
+              <option value="60000">1分钟</option>
+              <option value="300000">5分钟</option>
+              <option value="0">手动</option>
+            </select>
+            <button class="btn-refresh" id="refreshBtn">↻ 刷新</button>
+          </div>
+        </div>
+        <div class="cards-grid" id="cardsGrid"></div>
+      </section>
+    </main>
 
-// Modal
-document.getElementById('bAdd').onclick=()=>document.getElementById('ov').className='overlay open';
-document.getElementById('bClose').onclick=()=>document.getElementById('ov').className='overlay';
-document.getElementById('ov').onclick=e=>{if(e.target===document.getElementById('ov'))document.getElementById('ov').className='overlay';};
+    <!-- Detail Panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <div class="detail-title-row">
+          <h3 class="detail-title" id="detailTitle">--</h3>
+          <button class="btn-close" id="closeDetail">✕</button>
+        </div>
+        <div class="detail-subtitle" id="detailSubtitle">--</div>
+      </div>
+      <div class="detail-stats" id="detailStats"></div>
+      <div class="detail-chart">
+        <canvas id="priceChart"></canvas>
+      </div>
+    </div>
 
-// Quick tags
-document.getElementById('qtags').innerHTML=QUICK.map(q=>`<div class="tag" onclick="quickAdd('${q.secid}','${q.name}','${q.cat}')">${q.name}</div>`).join('');
+    <!-- Add Modal -->
+    <div class="modal-overlay" id="addModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>添加自选品种</h3>
+          <button class="btn-close" id="closeModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>合约代码</label>
+            <input type="text" id="contractCode" placeholder="如: aum, agm, cum" />
+          </div>
+          <div class="form-group">
+            <label>名称</label>
+            <input type="text" id="contractName" placeholder="如: 沪金主连" />
+          </div>
+          <div class="form-group">
+            <label>分类</label>
+            <select id="contractCategory">
+              <option value="贵金属">贵金属</option>
+              <option value="工业金属">工业金属</option>
+              <option value="能源">能源</option>
+              <option value="农产品">农产品</option>
+              <option value="化工">化工</option>
+              <option value="黑色金属">黑色金属</option>
+            </select>
+          </div>
+          <div class="quick-add">
+            <label>快速添加</label>
+            <div class="quick-tags" id="quickTags"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" id="cancelAdd">取消</button>
+          <button class="btn-confirm" id="confirmAdd">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-function quickAdd(secid,name,cat){
-  if(syms.find(s=>s.secid===secid)){alert('已存在');return;}
-  syms.push({secid,name,cat,unit:''});save();refresh();
-  document.getElementById('ov').className='overlay';
-}
+  <!-- Footer watermark removed for cleaner look -->
 
-document.getElementById('bOk').onclick=()=>{
-  const secid=document.getElementById('inSid').value.trim();
-  const name=document.getElementById('inName').value.trim()||secid;
-  const cat=document.getElementById('inCat').value.trim()||'其他';
-  if(!secid)return;
-  if(syms.find(s=>s.secid===secid)){alert('已存在');return;}
-  syms.push({secid,name,cat,unit:''});save();refresh();
-  document.getElementById('inSid').value='';
-  document.getElementById('inName').value='';
-  document.getElementById('inCat').value='';
-};
-
-function rm(secid){
-  if(!confirm('移除 '+secid+'?'))return;
-  syms=syms.filter(s=>s.secid!==secid);
-  delete quotes[secid];delete hist[secid];
-  if(sel===secid){sel=null;closeDetail();}
-  save();render();
-}
-
-// Init
-refresh();startTimer();
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
 
 <style>
 
