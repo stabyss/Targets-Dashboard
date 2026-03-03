@@ -10,50 +10,59 @@
 const DATA_SOURCES = {
   eastmoney: {
     name: '东方财富',
-    baseUrl: 'https://push2delay.eastmoney.com/api/qt/stock/get',
+    baseUrl: 'https://push2.eastmoney.com/api/qt/stock/get',
     fields: 'f43,f57,f58,f169,f170,f46,f44,f45,f50,f47,f48,f49',
     getSecId: (code) => {
+      // 交易所代码映射: 上期所=113, 大商所=114, 郑商所=115, 中金所=8, INE=142, 纽约COMEX=101, 伦敦LME=102
       const mapping = {
         // 贵金属
-        'aum': '113.aum',    // 沪金
-        'agm': '113.agm',    // 沪银
-        'AUTD': '118.AUTD',  // 黄金T+D
-        'AGTD': '118.AGTD',  // 白银T+D
-        'GC': '101.GC00Y',   // COMEX黄金
-        'SI': '101.SI00Y',   // COMEX白银
+        'aum': '113.AU2206',    // 沪金主力
+        'agm': '113.AG2206',    // 沪银主力
+        'AUTD': '118.AUTD',     // 黄金T+D
+        'AGTD': '118.AGTD',     // 白银T+D
+        'GC': '101.GC2206',     // COMEX黄金主力
+        'SI': '101.SI2206',     // COMEX白银主力
         // 工业金属
-        'cum': '113.cum',    // 沪铜
-        'alm': '113.alm',    // 沪铝
-        'znm': '113.znm',    // 沪锌
-        'nim': '113.nim',    // 沪镍
-        'pbm': '113.pbm',    // 沪铅
-        'spm': '113.spm',    // 沪锡
-        'ssm': '113.ssm',    // 不锈钢
-        'HG': '101.HG00Y',   // COMEX铜
+        'cum': '113.CU2206',    // 沪铜主力
+        'alm': '113.AL2206',    // 沪铝主力
+        'znm': '113.ZN2206',    // 沪锌主力
+        'nim': '113.NI2206',    // 沪镍主力
+        'pb': '113.PB2206',     // 沪铅
+        'sn': '113.SN2206',     // 沪锡
+        'ss': '113.SS2206',     // 不锈钢
+        'HG': '101.HG2206',     // COMEX铜
         // 能源
-        'scm': '142.scm',    // 国内原油
-        'B00Y': '112.B00Y', // 布伦特原油
+        'sc': '142.SC2206',     // 原油主力
+        'B00Y': '112.BZ2205',  // 布伦特原油
+        'scm': '142.SC2206',    // 国内原油
         // 黑色金属
-        'rbm': '113.rbm',    // 螺纹钢
-        'im': '114.im',      // 铁矿石
-        'hc': '113.hc',      // 热卷
+        'rb': '113.RB2205',     // 螺纹钢主力
+        'i': '114.I2205',       // 铁矿石主力
+        'hc': '113.HC2205',     // 热卷
         // 农产品
-        'mm': '114.mm',      // 豆粕
-        'ym': '114.ym',      // 豆油
-        'a': '114.a',        // 豆一
-        'b': '114.b',        // 豆二
-        'SRM': '115.SRM',    // 白糖
-        'CFM': '115.CFM',    // 棉花
-        'JR': '115.JR',      // 粳米
+        'm': '114.M2205',       // 豆粕主力
+        'y': '114.Y2205',       // 豆油主力
+        'a': '114.A2205',       // 豆一
+        'b': '114.B2205',       // 豆二
+        'SR': '115.SR2209',     // 白糖主力
+        'CF': '115.CF2209',     // 棉花主力
+        'JR': '115.JR2209',     // 粳米
         // 化工
-        'MAm': '115.MAm',    // 甲醇
-        'SAM': '115.SAM',    // 纯碱
-        'TA': '115.TA',      // PTA
-        'RU': '115.RU',      // 橡胶
-        'BU': '113.BU',      // 沥青
-        'SC': '142.SC',      // 原油
+        'MA': '115.MA2205',     // 甲醇主力
+        'SA': '115.SA2205',     // 纯碱主力
+        'TA': '115.TA2209',     // PTA主力
+        'RU': '115.RU2209',     // 橡胶主力
+        'BU': '113.BU2206',     // 沥青主力
       };
-      return mapping[code.toLowerCase()] || `113.${code.toLowerCase()}`;
+      
+      // 如果是简单代码，尝试匹配
+      const lowerCode = code.toLowerCase();
+      if (mapping[lowerCode]) {
+        return mapping[lowerCode];
+      }
+      
+      // 尝试直接使用代码
+      return `113.${code.toUpperCase()}`;
     }
   },
   sina: {
@@ -189,6 +198,31 @@ function initUI() {
   showPage('home');
 }
 
+// Demo data for fallback when API fails
+const DEMO_DATA = {
+  'aum': { price: 452.30, open: 450.50, high: 453.80, low: 449.20, volume: 156000, change: 1.80, changePercent: 0.40 },
+  'agm': { price: 5420, open: 5380, high: 5450, low: 5350, volume: 89000, change: 40, changePercent: 0.74 },
+  'AUTD': { price: 453.25, open: 451.80, high: 454.50, low: 450.90, volume: 45000, change: 1.45, changePercent: 0.32 },
+  'AGTD': { price: 5412, open: 5390, high: 5430, low: 5375, volume: 32000, change: 22, changePercent: 0.41 },
+  'GC': { price: 1985.20, open: 1972.50, high: 1990.80, low: 1968.30, volume: 125000, change: 12.70, changePercent: 0.64 },
+  'cum': { price: 68950, open: 68500, high: 69200, low: 68300, volume: 78000, change: 450, changePercent: 0.66 },
+  'alm': { price: 18420, open: 18350, high: 18500, low: 18280, volume: 95000, change: 70, changePercent: 0.38 },
+  'nim': { price: 172800, open: 171500, high: 173500, low: 170800, volume: 45000, change: 1300, changePercent: 0.76 },
+  'sc': { price: 528.4, open: 525.0, high: 530.2, low: 523.8, volume: 180000, change: 3.4, changePercent: 0.65 },
+  'B00Y': { price: 82.15, open: 81.60, high: 82.50, low: 81.20, volume: 95000, change: 0.55, changePercent: 0.67 },
+  'rb': { price: 3680, open: 3665, high: 3695, low: 3650, volume: 2100000, change: 15, changePercent: 0.41 },
+  'i': { price: 795.0, open: 788.5, high: 798.0, low: 785.0, volume: 850000, change: 6.5, changePercent: 0.82 },
+  'm': { price: 3528, open: 3510, high: 3545, low: 3495, volume: 650000, change: 18, changePercent: 0.51 },
+  'y': { price: 7896, open: 7850, high: 7920, low: 7830, volume: 420000, change: 46, changePercent: 0.59 },
+  'SR': { price: 6215, open: 6180, high: 6240, low: 6165, volume: 380000, change: 35, changePercent: 0.57 },
+  'CF': { price: 15425, open: 15380, high: 15480, low: 15320, volume: 280000, change: 45, changePercent: 0.29 },
+  'MA': { price: 2685, open: 2670, high: 2698, low: 2662, volume: 750000, change: 15, changePercent: 0.56 },
+  'SA': { price: 2985, open: 2965, high: 3002, low: 2958, volume: 520000, change: 20, changePercent: 0.67 }
+};
+
+// Demo mode flag
+let demoMode = false;
+
 // Initialize event listeners
 function initEventListeners() {
   // Navigation tabs
@@ -310,6 +344,31 @@ async function refreshData() {
     });
     
     updateStatus(successCount > 0 ? 'connected' : 'error');
+    
+    // If no data from API, use demo data
+    if (successCount === 0) {
+      demoMode = true;
+      console.log('Using demo data (API unavailable)');
+      contracts.forEach(contract => {
+        const demo = DEMO_DATA[contract.code];
+        if (demo) {
+          state.quotes[contract.code] = demo;
+          if (!state.priceHistory[contract.code]) {
+            state.priceHistory[contract.code] = [];
+          }
+          // Add some fake history for demo
+          for (let i = 0; i < 20; i++) {
+            const variation = (Math.random() - 0.5) * demo.price * 0.02;
+            state.priceHistory[contract.code].push({
+              price: demo.price - demo.change + variation,
+              time: Date.now() - (20 - i) * 60000
+            });
+          }
+          state.priceHistory[contract.code].push({ price: demo.price, time: Date.now() });
+        }
+      });
+      updateStatus('demo');
+    }
     updateLastUpdateTime();
     
     // Render current page
@@ -336,28 +395,53 @@ async function fetchContractData(code, source) {
     const secId = source.getSecId(code);
     const url = `${source.baseUrl}?secid=${encodeURIComponent(secId)}&fields=${source.fields}&ut=fa5fd1943c7b386f172d6893dbfba10b&fltt=2&invt=2&_=${Date.now()}`;
     
-    const response = await fetch(url, {
-      headers: { 'Referer': 'https://quote.eastmoney.com/' }
-    });
-    
-    const data = await response.json();
-    if (!data.data) return null;
-    
-    const d = data.data;
-    return {
-      price: d.f43,
-      open: d.f46,
-      high: d.f44,
-      low: d.f45,
-      volume: d.f47,
-      amount: d.f48,
-      change: d.f170,
-      changePercent: d.f169,
-      settle: d.f50,
-      openInterest: d.f49,
-      upperLimit: d.f57,
-      lowerLimit: d.f58
-    };
+    try {
+      const response = await fetch(url, {
+        headers: { 
+          'Referer': 'https://quote.eastmoney.com/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('API response not ok:', response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      
+      // Check if we got valid data
+      if (!data.data) {
+        console.error('No data for:', secId, data);
+        return null;
+      }
+      
+      const d = data.data;
+      
+      // Check if price is valid
+      if (!d.f43 || d.f43 === '-') {
+        console.error('Invalid price for:', secId);
+        return null;
+      }
+      
+      return {
+        price: d.f43,
+        open: d.f46,
+        high: d.f44,
+        low: d.f45,
+        volume: d.f47,
+        amount: d.f48,
+        change: d.f170,
+        changePercent: d.f169,
+        settle: d.f50,
+        openInterest: d.f49,
+        upperLimit: d.f57,
+        lowerLimit: d.f58
+      };
+    } catch (error) {
+      console.error('Fetch error:', error);
+      return null;
+    }
   }
   
   return null;
@@ -690,8 +774,8 @@ function removeFavorite(code) {
 
 function quickAdd(code) {
   if (state.favorites.find(c => c.code === code)) {
-    alert品种已存在');
-('该    return;
+    alert('该品种已存在');
+    return;
   }
   
   const defaultContract = DEFAULT_CONTRACTS.find(c => c.code === code);
@@ -738,6 +822,9 @@ function updateStatus(status) {
     text.textContent = '已连接';
   } else if (status === 'connecting') {
     text.textContent = '连接中...';
+  } else if (status === 'demo') {
+    dot.classList.add('connected');
+    text.textContent = '演示模式';
   } else {
     dot.classList.add('error');
     text.textContent = '连接失败';
