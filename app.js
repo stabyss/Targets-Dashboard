@@ -306,6 +306,16 @@ function showPage(page, category) {
 // Data Fetching
 // ==========================================
 
+// Proxy server URL (update this to your deployed proxy URL)
+// Try multiple proxy URLs for fallback
+const PROXY_SERVER_URLS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+// Current proxy URL index for fallback
+let currentProxyIndex = 0;
+
 async function refreshData() {
   const contracts = state.currentPage === 'home' 
     ? state.favorites 
@@ -387,20 +397,24 @@ async function refreshData() {
   } catch (error) {
     console.error('Refresh error:', error);
     updateStatus('error');
+    // Try fallback proxy URL
+    if (currentProxyIndex < PROXY_SERVER_URLS.length - 1) {
+      currentProxyIndex++;
+      console.log('Trying fallback proxy:', PROXY_SERVER_URLS[currentProxyIndex]);
+      setTimeout(refreshData, 1000);
+    }
   }
 }
 
 async function fetchContractData(code, source) {
   if (source.name === '东方财富') {
     const secId = source.getSecId(code);
-    const url = `${source.baseUrl}?secid=${encodeURIComponent(secId)}&fields=${source.fields}&ut=fa5fd1943c7b386f172d6893dbfba10b&fltt=2&invt=2&_=${Date.now()}`;
+    // Use proxy server instead of direct API call with fallback
+    const proxyUrl = `${PROXY_SERVER_URLS[currentProxyIndex]}/proxy/eastmoney?secid=${encodeURIComponent(secId)}&fields=${source.fields}&ut=fa5fd1943c7b386f172d6893dbfba10b&fltt=2&invt=2&_=${Date.now()}`;
     
     try {
-      const response = await fetch(url, {
-        headers: { 
-          'Referer': 'https://quote.eastmoney.com/',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+      const response = await fetch(proxyUrl, {
+        
       });
       
       if (!response.ok) {
