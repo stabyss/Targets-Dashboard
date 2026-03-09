@@ -8,22 +8,6 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3000;
 
-// Proxy configuration
-const PROXY_CONFIG = {
-  eastmoney: {
-    baseUrl: 'https://push2.eastmoney.com',
-    allowedPaths: ['/api/qt/stock/get']
-  },
-  sina: {
-    baseUrl: 'https://hq.sinajs.cn',
-    allowedPaths: ['/list']
-  },
-  ifeng: {
-    baseUrl: 'http://quotes.ifeng.com',
-    allowedPaths: []
-  }
-};
-
 // Create HTTP server
 const server = http.createServer((req, res) => {
   // Set CORS headers - Allow all origins for development
@@ -71,11 +55,10 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// Handle East Money proxy
+// Handle East Money proxy - simplified version with proper fallback
 function handleEastMoneyProxy(query, res) {
   const secId = query.secid;
   const fields = query.fields || 'f43,f57,f58,f169,f170,f46,f44,f45,f50,f47,f48,f49';
-  const ut = query.ut || 'fa5fd1943c7b386f172d6893dbfba10b';
   
   if (!secId) {
     res.writeHead(400, { 
@@ -86,107 +69,109 @@ function handleEastMoneyProxy(query, res) {
     return;
   }
   
-  const proxyUrl = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secId)}&fields=${fields}&ut=${ut}&fltt=2&invt=2&_=${Date.now()}`;
+  // Use the main quote API endpoint with proper parameters
+  const apiUrl = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secId)}&fields=${fields}&ut=f851c61d0a56e8866117e0f80c5d70f2&fltt=2&invt=2&wbp2u=0|0|0|0&_=${Date.now()}`;
   
-  console.log('Proxying to:', proxyUrl);
+  console.log('Fetching from East Money API:', apiUrl);
   
-  https.get(proxyUrl, {
+  const request = https.get(apiUrl, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Referer': 'https://quote.eastmoney.com/',
       'Accept': 'application/json, text/plain, */*'
     }
   }, (proxyRes) => {
     let data = '';
     
-    // 记录响应状态码和头部信息
-    console.log('Response status:', proxyRes.statusCode);
-    console.log('Response headers:', proxyRes.headers);
-    
     proxyRes.on('data', (chunk) => {
       data += chunk;
     });
     
     proxyRes.on('end', () => {
-      // 检查是否是有效的JSON响应
-      if (proxyRes.statusCode !== 200) {
-        console.error('Non-200 response from East Money:', proxyRes.statusCode);
-        res.writeHead(502, { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        });
-        res.end(JSON.stringify({ 
-          error: 'Remote server returned non-200 status code', 
-          statusCode: proxyRes.statusCode,
-          details: data.substring(0, 200)
-        }));
-        return;
-      }
+      // Log response for debugging
+      console.log('Response status:', proxyRes.statusCode);
+      console.log('Response length:', data.length);
+      console.log('Response preview:', data.substring(0, 200));
       
-      // 检查Content-Type是否为JSON
-      const contentType = proxyRes.headers['content-type'] || '';
-      if (!contentType.includes('application/json') && !contentType.includes('text/plain')) {
-        console.error('Invalid content type:', contentType);
+      // Check status code
+      if (proxyRes.statusCode !== 200) {
         res.writeHead(502, { 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify({ 
-          error: 'Invalid content type from remote server', 
-          contentType: contentType,
-          details: data.substring(0, 200)
+          error: 'API returned non-200', 
+          statusCode: proxyRes.statusCode 
         }));
         return;
       }
       
       try {
-        // 尝试解析JSON
-        console.log('Attempting to parse JSON:', data.substring(0, 100));
         const jsonData = JSON.parse(data);
         
-        // 验证数据结构
-        if (!jsonData.data || !jsonData.data.f43) {
-          console.error('Invalid data structure:', jsonData);
-          res.writeHead(502, { 
+        // Check for valid data structure
+        // The API returns {rc: 0, data: {...}} for success
+        // It returns {rc: 100, data: null} for invalid secid
+        if (jsonData.rc && jsonData.rc !== 0) {
+          console.log('API returned error code:', jsonData.rc);
+          // Return a special response that the frontend can handle
+          res.writeHead(200, { 
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
           });
           res.end(JSON.stringify({ 
-            error: 'Invalid data structure from East Money', 
-            details: 'Missing required fields in response'
+            error: 'invalid_secid', 
+            rc: jsonData.rc,
+            message: 'Invalid or expired contract code',
+            data: null
           }));
           return;
         }
         
+        // Check if data exists
+        if (!jsonData.data) {
+          console.log('No data in response');
+          res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(JSON.stringify({ 
+            error: 'no_data', 
+            data: null 
+          }));
+          return;
+        }
+        
+        // Success - return the data
         res.writeHead(200, { 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify(jsonData));
+        
       } catch (e) {
-        console.error('Parse error:', e.message, 'Data:', data.substring(0, 200));
+        console.error('Parse error:', e.message);
         res.writeHead(502, { 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify({ 
-          error: 'Failed to parse response from East Money', 
-          details: e.message,
-          rawResponse: data.substring(0, 200),
-          responseLength: data.length
+          error: 'parse_error', 
+          message: e.message 
         }));
       }
     });
-  }).on('error', (err) => {
-    console.error('East Money proxy error:', err.message);
+  });
+  
+  request.on('error', (err) => {
+    console.error('Request error:', err.message);
     res.writeHead(502, { 
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*'
     });
     res.end(JSON.stringify({ 
-      error: 'Proxy request failed', 
-      message: err.message,
-      details: 'Network error occurred'
+      error: 'network_error', 
+      message: err.message 
     }));
   });
 }
@@ -229,6 +214,6 @@ function handleSinaProxy(query, res) {
 server.listen(PORT, () => {
   console.log(`Futures Pro Proxy Server running on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`East Money proxy: http://localhost:${PORT}/proxy/eastmoney?secid=113.AU2206`);
+  console.log(`East Money proxy: http://localhost:${PORT}/proxy/eastmoney?secid=1.AU0`);
   console.log(`CORS enabled for all origins`);
 });

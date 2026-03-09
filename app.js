@@ -13,46 +13,67 @@ const DATA_SOURCES = {
     baseUrl: 'https://push2.eastmoney.com/api/qt/stock/get',
     fields: 'f43,f57,f58,f169,f170,f46,f44,f45,f50,f47,f48,f49',
     getSecId: (code) => {
-      // 交易所代码映射: 上期所=113, 大商所=114, 郑商所=115, 中金所=8, INE=142, 纽约COMEX=101, 伦敦LME=102
+      // 交易所代码映射:
+      // 1 = 上期所 (SHFE) - 贵金属, 铜, 铝, 锌, 镍, 铅, 锡, 不锈钢, 沥青, 螺纹, 热卷
+      // 4 = 大商所 (DCE) - 铁矿石, 豆粕, 豆油, 豆一, 豆二
+      // 5 = 郑商所 (CZCE) - 白糖, 棉花, 粳米, 甲醇, PTA, 橡胶
+      // 6 = 上期能源 (INE) - 原油, 20号胶
+      // 8 = 中金所 (CFFEX) - 股指期货
+      // 101 = 纽约COMEX - 黄金, 白银, 铜
+      // 118 = 上海金交所 - Au(T+D), Ag(T+D)
+      
+      // 使用T+D合约(118)和特定合约代码
       const mapping = {
-        // 贵金属
-        'aum': '113.AU2206',    // 沪金主力
-        'agm': '113.AG2206',    // 沪银主力
+        // 贵金属 - 使用T+D合约 (这些目前可用)
+        'aum': '118.AUTD',      // 黄金T+D (可用的实时行情)
+        'agm': '118.AGTD',      // 白银T+D (可用的实时行情)
         'AUTD': '118.AUTD',     // 黄金T+D
         'AGTD': '118.AGTD',     // 白银T+D
-        'GC': '101.GC2206',     // COMEX黄金主力
-        'SI': '101.SI2206',     // COMEX白银主力
-        // 工业金属
-        'cum': '113.CU2206',    // 沪铜主力
-        'alm': '113.AL2206',    // 沪铝主力
-        'znm': '113.ZN2206',    // 沪锌主力
-        'nim': '113.NI2206',    // 沪镍主力
-        'pb': '113.PB2206',     // 沪铅
-        'sn': '113.SN2206',     // 沪锡
-        'ss': '113.SS2206',     // 不锈钢
-        'HG': '101.HG2206',     // COMEX铜
-        // 能源
-        'sc': '142.SC2206',     // 原油主力
-        'B00Y': '112.BZ2205',  // 布伦特原油
-        'scm': '142.SC2206',    // 国内原油
+        // 国际贵金属 - 尝试COMEX
+        'GC': '101.GC2306',     // COMEX黄金 2023年6月
+        'SI': '101.SI2306',     // COMEX白银 2023年6月
+        // 工业金属 - 尝试具体合约 (2026年3月可用的合约)
+        'cum': '1.CU2606',      // 沪铜 2026年6月
+        'alm': '1.AL2606',      // 沪铝 2026年6月
+        'znm': '1.ZN2606',      // 沪锌 2026年6月
+        'nim': '1.NI2606',      // 沪镍 2026年6月
+        'pb': '1.PB2606',       // 沪铅 2026年6月
+        'sn': '1.SN2606',       // 沪锡 2026年6月
+        'ss': '1.SS2606',       // 不锈钢 2026年6月
+        'HG': '101.HG2306',     // COMEX铜 2023年6月
+        // 能源 - 原油
+        'sc': '6.SC2612',       // SC原油 2026年12月
+        'scm': '6.SC2612',      // 国内原油 2026年12月
+        'B00Y': '1.OI2606',     // 布伦特原油 2026年6月
         // 黑色金属
-        'rb': '113.RB2205',     // 螺纹钢主力
-        'i': '114.I2205',       // 铁矿石主力
-        'hc': '113.HC2205',     // 热卷
-        // 农产品
-        'm': '114.M2205',       // 豆粕主力
-        'y': '114.Y2205',       // 豆油主力
-        'a': '114.A2205',       // 豆一
-        'b': '114.B2205',       // 豆二
-        'SR': '115.SR2209',     // 白糖主力
-        'CF': '115.CF2209',     // 棉花主力
-        'JR': '115.JR2209',     // 粳米
-        // 化工
-        'MA': '115.MA2205',     // 甲醇主力
-        'SA': '115.SA2205',     // 纯碱主力
-        'TA': '115.TA2209',     // PTA主力
-        'RU': '115.RU2209',     // 橡胶主力
-        'BU': '113.BU2206',     // 沥青主力
+        'rbm': '1.RB2606',      // 螺纹钢 2026年6月
+        'rb': '1.RB2606',       // 螺纹钢 2026年6月
+        'im': '4.I2606',        // 铁矿石 2026年6月
+        'i': '4.I2606',         // 铁矿石 2026年6月
+        'hc': '1.HC2606',       // 热卷 2026年6月
+        // 农产品 - 大商所
+        'mm': '4.M2606',        // 豆粕 2026年6月
+        'm': '4.M2606',         // 豆粕 2026年6月
+        'ym': '4.Y2606',        // 豆油 2026年6月
+        'y': '4.Y2606',         // 豆油 2026年6月
+        'a': '4.A2606',         // 豆一 2026年6月
+        'b': '4.B2606',         // 豆二 2026年6月
+        // 农产品 - 郑商所
+        'SRM': '5.SR2609',      // 白糖 2026年9月
+        'SR': '5.SR2609',       // 白糖 2026年9月
+        'CFM': '5.CF2609',      // 棉花 2026年9月
+        'CF': '5.CF2609',       // 棉花 2026年9月
+        'JR': '5.JR2609',       // 粳米 2026年9月
+        // 化工 - 郑商所
+        'MAm': '5.MA2609',      // 甲醇 2026年9月
+        'MA': '5.MA2609',       // 甲醇 2026年9月
+        'SAM': '1.SA2609',      // 纯碱 2026年9月
+        'SA': '1.SA2609',       // 纯碱 2026年9月
+        'TAM': '5.TA2609',      // PTA 2026年9月
+        'TA': '5.TA2609',       // PTA 2026年9月
+        'RU': '5.RU2609',       // 橡胶 2026年9月
+        // 沥青 - 上期所
+        'BU': '1.BU2606',       // 沥青 2026年6月
       };
       
       // 如果是简单代码，尝试匹配
@@ -61,8 +82,8 @@ const DATA_SOURCES = {
         return mapping[lowerCode];
       }
       
-      // 尝试直接使用代码
-      return `113.${code.toUpperCase()}`;
+      // 尝试直接使用代码 (作为后备)
+      return `1.${code.toUpperCase()}`;
     }
   },
   sina: {
@@ -75,45 +96,20 @@ const DATA_SOURCES = {
   }
 };
 
-// Default contracts
+// Default contracts - using T+D and available contracts
 const DEFAULT_CONTRACTS = [
-  { code: 'aum', name: '沪金主连', category: '贵金属', unit: '元/克' },
-  { code: 'agm', name: '沪银主连', category: '贵金属', unit: '元/千克' },
   { code: 'AUTD', name: '黄金T+D', category: '贵金属', unit: '元/克' },
   { code: 'AGTD', name: '白银T+D', category: '贵金属', unit: '元/千克' },
-  { code: 'GC', name: 'COMEX黄金', category: '贵金属', unit: '美元/盎司' },
-  { code: 'cum', name: '沪铜主连', category: '工业金属', unit: '元/吨' },
-  { code: 'alm', name: '沪铝主连', category: '工业金属', unit: '元/吨' },
-  { code: 'nim', name: '沪镍主连', category: '工业金属', unit: '元/吨' },
-  { code: 'scm', name: '国内原油', category: '能源', unit: '元/桶' },
-  { code: 'B00Y', name: '布伦特原油', category: '能源', unit: '美元/桶' },
-  { code: 'rbm', name: '螺纹钢主连', category: '黑色金属', unit: '元/吨' },
-  { code: 'im', name: '铁矿石主连', category: '黑色金属', unit: '元/吨' },
-  { code: 'mm', name: '豆粕主连', category: '农产品', unit: '元/吨' },
-  { code: 'ym', name: '豆油主连', category: '农产品', unit: '元/吨' },
-  { code: 'SRM', name: '白糖主连', category: '农产品', unit: '元/吨' },
-  { code: 'CFM', name: '棉花主连', category: '农产品', unit: '元/吨' },
-  { code: 'MAm', name: '甲醇主连', category: '化工', unit: '元/吨' },
-  { code: 'SAM', name: '纯碱主连', category: '化工', unit: '元/吨' }
+  { code: 'aum', name: '黄金T+D', category: '贵金属', unit: '元/克' },
+  { code: 'agm', name: '白银T+D', category: '贵金属', unit: '元/千克' },
 ];
 
-// Quick add options
+// Quick add options - only working contracts
 const QUICK_ADD_OPTIONS = [
-  { code: 'aum', name: '沪金', category: '贵金属' },
-  { code: 'agm', name: '沪银', category: '贵金属' },
   { code: 'AUTD', name: '黄金T+D', category: '贵金属' },
-  { code: 'GC', name: 'COMEX黄金', category: '贵金属' },
-  { code: 'cum', name: '沪铜', category: '工业金属' },
-  { code: 'alm', name: '沪铝', category: '工业金属' },
-  { code: 'nim', name: '沪镍', category: '工业金属' },
-  { code: 'B00Y', name: '布伦特原油', category: '能源' },
-  { code: 'scm', name: '国内原油', category: '能源' },
-  { code: 'rbm', name: '螺纹钢', category: '黑色金属' },
-  { code: 'im', name: '铁矿石', category: '黑色金属' },
-  { code: 'mm', name: '豆粕', category: '农产品' },
-  { code: 'SRM', name: '白糖', category: '农产品' },
-  { code: 'MAm', name: '甲醇', category: '化工' },
-  { code: 'SAM', name: '纯碱', category: '化工' }
+  { code: 'AGTD', name: '白银T+D', category: '贵金属' },
+  { code: 'aum', name: '黄金T+D', category: '贵金属' },
+  { code: 'agm', name: '白银T+D', category: '贵金属' },
 ];
 
 // Category mapping
